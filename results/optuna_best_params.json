@@ -1,0 +1,28 @@
+{
+  "model": "LightGBM",
+  "objective": "mean 5-fold GroupKFold log loss (train trips)",
+  "sampler": "TPE (seed 42)",
+  "pruner": "MedianPruner",
+  "n_trials": 30,
+  "n_complete": 15,
+  "search_seconds": 485.9,
+  "search_space": {
+    "learning_rate": "log-uniform [0.01, 0.3]",
+    "n_estimators": "int [50, 400]",
+    "num_leaves": "int [15, 127]",
+    "min_child_samples": "int [5, 200]",
+    "reg_lambda": "log-uniform [1e-4, 10]",
+    "colsample_bytree": "uniform [0.5, 1.0]",
+    "subsample": "uniform [0.5, 1.0] (bagging every iteration)"
+  },
+  "best_params": {
+    "learning_rate": 0.01875220945578641,
+    "n_estimators": 390,
+    "num_leaves": 102,
+    "min_child_samples": 189,
+    "reg_lambda": 2.979454462591361,
+    "colsample_bytree": 0.7989499894055425,
+    "subsample": 0.9609371175115584
+  },
+  "best_cv_log_loss": 0.10133202172950515
+}

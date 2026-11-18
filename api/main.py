@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from data_io import load_trip  # noqa: E402
-from hmm import viterbi_decode  # noqa: E402
+from hmm import load_params, viterbi_decode  # noqa: E402
 from metrics import continuity  # noqa: E402
 from pipeline import FEATURES, TripGeometry, add_features, align_reference, generate_candidates  # noqa: E402
 
@@ -37,7 +37,8 @@ EVAL_DIR = Path(os.environ.get("PATHSNAP_EVAL_DIR", ROOT.parent / "Student folde
 sel_file = ROOT / "models" / "selected_model.json"
 MODEL_NAME = os.environ.get("PATHSNAP_MODEL") or (json.loads(sel_file.read_text())["model_file"] if sel_file.exists() else "HistGradientBoosting.joblib")
 MODEL = joblib.load(ROOT / "models" / MODEL_NAME)
-log.info("Loaded model %s | serving trips from %s", MODEL_NAME, EVAL_DIR)
+HMM_PARAMS = load_params(ROOT / "models")  # tuned decoder settings (models/hmm_params.json)
+log.info("Loaded model %s | HMM %s | serving trips from %s", MODEL_NAME, HMM_PARAMS, EVAL_DIR)
 
 app = FastAPI(title="PathSnap API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -64,7 +65,7 @@ def arc_polylines(g, arc_seq):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "model": MODEL_NAME, "n_trips": len(available_trips())}
+    return {"status": "ok", "model": MODEL_NAME, "hmm": HMM_PARAMS, "n_trips": len(available_trips())}
 
 
 @app.get("/trips")
@@ -91,7 +92,7 @@ def predict(req: PredictRequest):
         p = MODEL.predict_proba(cand[FEATURES].to_numpy())[:, 1]
         best = cand.assign(p=p).groupby("point_idx")["p"].idxmax()
         clf_arcs[cand.loc[best, "point_idx"].to_numpy()] = cand.loc[best, "arc_id"].to_numpy()
-        hmm_arcs = viterbi_decode(g, cand, p)
+        hmm_arcs = viterbi_decode(g, cand, p, **HMM_PARAMS)
     t_pred = time.time() - t0
 
     # ---------- server-side evaluation against the reference route ----------

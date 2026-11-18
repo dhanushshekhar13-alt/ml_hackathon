@@ -1,0 +1,37 @@
+partition,check,count
+train,track: rows,208417
+train,track: NaN / unparsable values,0
+train,track: wrong column count,0
+train,nodes: rows,1933485
+train,nodes: NaN / unparsable values,0
+train,nodes: wrong column count,0
+train,arcs: rows,3876904
+train,arcs: NaN / unparsable values,0
+train,arcs: wrong column count,0
+train,route: rows,31336
+train,route: NaN / unparsable values,0
+train,route: wrong column count,0
+train,track duplicate time,0
+train,track non increasing time,0
+train,track out of range coord,0
+train,arcs bad node index,0
+train,route bad arc index,0
+train,trips,80
+student_test,track: rows,19160
+student_test,track: NaN / unparsable values,0
+student_test,track: wrong column count,0
+student_test,nodes: rows,90689
+student_test,nodes: NaN / unparsable values,0
+student_test,nodes: wrong column count,0
+student_test,arcs: rows,185041
+student_test,arcs: NaN / unparsable values,0
+student_test,arcs: wrong column count,0
+student_test,route: rows,3477
+student_test,route: NaN / unparsable values,0
+student_test,route: wrong column count,0
+student_test,track duplicate time,0
+student_test,track non increasing time,0
+student_test,track out of range coord,0
+student_test,arcs bad node index,0
+student_test,route bad arc index,0
+student_test,trips,10

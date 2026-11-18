@@ -117,7 +117,7 @@ def main():
                "cv_time_s": cv_time, "train_time_s": train_time,
                "inference_ms_per_1k_rows": 1000 * inf_time / len(Xte) * 1000}
         rows.append(row)
-        print(f"{name:22s} CV F1 {row['cv_macro_f1_mean']:.4f}±{row['cv_macro_f1_std']:.4f} | test F1 {cm['macro_f1']:.4f} "
+        print(f"{name:22s} CV F1 {row['cv_macro_f1_mean']:.4f}±{row['cv_macro_f1_std']:.4f} CV LL {row['cv_log_loss']:.4f} | test F1 {cm['macro_f1']:.4f} "
               f"LL {cm['log_loss']:.4f} top1 {sm['top1_accuracy']:.4f} cont {sm['route_continuity']:.4f} | {cv_time:.0f}s", flush=True)
     res = pd.DataFrame(rows)
     res.to_csv(RES / "model_comparison.csv", index=False)

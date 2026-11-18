@@ -1,7 +1,7 @@
 """HMM + Viterbi route reconstruction on top of classifier candidate probabilities.
 
 Hidden state at observation i = one of its candidate arcs (state <-> arc_id kept explicitly).
-Emission   log P(z_i | arc) = log(p_classifier + eps)
+Emission   log P(z_i | arc) = w * log(p_classifier + eps)   (w = emission weight, tuned)
 Transition log P(arc_b | arc_a) = -|d_route - d_gps| / beta
     d_gps   = straight-line distance between the two GPS observations
     d_route = network distance from the projection on arc_a to the projection on arc_b
@@ -19,6 +19,7 @@ BETA = 15.0            # metres; tolerance on route-vs-GPS distance mismatch
 UNREACHABLE = -50.0    # log-penalty for disconnected candidate pairs
 GAP_S = 30.0           # break the chain when GPS gap is larger than this
 BACKWARD_PEN = -8.0    # log-penalty for moving backwards on the same arc
+EMISSION_W = 1.0       # weight on log emission (how much the decoder trusts the classifier vs connectivity)
 
 
 class Router:
@@ -54,9 +55,11 @@ class Router:
 
 
 
-def viterbi_decode(g, cand, prob, beta=BETA):
-    """cand: DataFrame for ONE trip with point_idx, arc_id, proj_frac. Returns array arc per GPS point (-1 = none)."""
-    router = Router(g)
+def viterbi_decode(g, cand, prob, beta=BETA, gap_s=GAP_S, unreachable=UNREACHABLE, backward_pen=BACKWARD_PEN, emission_w=EMISSION_W, router=None):
+    """cand: DataFrame for ONE trip with point_idx, arc_id, proj_frac. Returns array arc per GPS point (-1 = none).
+
+    `router` can be passed to reuse cached shortest paths across decoder settings (tuning)."""
+    router = router or Router(g)
     out = np.full(len(g.P), -1, dtype=np.int64)
     cand = cand.assign(p=prob)
     groups = {pi: d for pi, d in cand.groupby("point_idx", sort=True)}
@@ -66,17 +69,17 @@ def viterbi_decode(g, cand, prob, beta=BETA):
     # split where a point has no candidates (gap in pts) AND the time gap is large, or time gap large
     breaks = [0]
     for k in range(1, len(pts)):
-        if (g.t[pts[k]] - g.t[pts[k - 1]]) > GAP_S:
+        if (g.t[pts[k]] - g.t[pts[k - 1]]) > gap_s:
             breaks.append(k)
     breaks.append(len(pts))
     for s, e in zip(breaks[:-1], breaks[1:]):
-        _decode_segment(g, router, [groups[p] for p in pts[s:e]], pts[s:e], out, beta)
+        _decode_segment(g, router, [groups[p] for p in pts[s:e]], pts[s:e], out, beta, unreachable, backward_pen, emission_w)
     return out
 
 
-def _decode_segment(g, router, states, pts, out, beta):
+def _decode_segment(g, router, states, pts, out, beta, unreachable=UNREACHABLE, backward_pen=BACKWARD_PEN, emission_w=EMISSION_W):
     arcs0 = states[0]["arc_id"].to_numpy()
-    score = np.log(states[0]["p"].to_numpy() + EPS)
+    score = emission_w * np.log(states[0]["p"].to_numpy() + EPS)
     backs = []
     for k in range(1, len(states)):
         A, B = states[k - 1], states[k]
@@ -87,7 +90,7 @@ def _decode_segment(g, router, states, pts, out, beta):
         dt = max(float(g.t[pts[k]] - g.t[pts[k - 1]]), 1.0)
         cutoff = d_gps * 2 + 100.0 * dt ** 0.5
         bta = beta * dt ** 0.5
-        trans = np.full((len(a_arc), len(b_arc)), UNREACHABLE)
+        trans = np.full((len(a_arc), len(b_arc)), float(unreachable))
         for i, (aa, at) in enumerate(zip(a_arc, a_t)):
             la = g.len[aa]
             rest_a = (1 - at) * la
@@ -97,7 +100,7 @@ def _decode_segment(g, router, states, pts, out, beta):
                     if bt >= at:
                         trans[i, j] = -abs((bt - at) * la - d_gps) / bta
                     else:
-                        trans[i, j] = BACKWARD_PEN - abs((at - bt) * la - d_gps) / bta
+                        trans[i, j] = backward_pen - abs((at - bt) * la - d_gps) / bta
                     continue
                 dn = reach.get(int(g.arcs[bb, 0]))
                 if dn is not None:
@@ -105,7 +108,7 @@ def _decode_segment(g, router, states, pts, out, beta):
                     trans[i, j] = -abs(d_route - d_gps) / bta
         tot = score[:, None] + trans
         bp = tot.argmax(0)
-        score = tot[bp, np.arange(len(b_arc))] + np.log(B["p"].to_numpy() + EPS)
+        score = tot[bp, np.arange(len(b_arc))] + emission_w * np.log(B["p"].to_numpy() + EPS)
         backs.append(bp)
     # backtrack
     j = int(np.argmax(score))
@@ -113,3 +116,19 @@ def _decode_segment(g, router, states, pts, out, beta):
         out[pts[k]] = int(states[k]["arc_id"].to_numpy()[j])
         if k > 0:
             j = int(backs[k - 1][j])
+
+
+def load_params(models_dir):
+    """Decoder settings chosen by tune_hmm.py (defaults if it has not been run)."""
+    import json
+    from pathlib import Path
+    f = Path(models_dir) / "hmm_params.json"
+    d = {"beta": BETA, "gap_s": GAP_S, "unreachable": UNREACHABLE, "backward_pen": BACKWARD_PEN, "emission_w": EMISSION_W}
+    if f.exists():
+        d.update({k: v for k, v in json.loads(f.read_text()).items() if k in d})
+    return d
+
+
+def distance_emission(cand, sigma=10.0):
+    """Classic distance-only HMM emission (Newson & Krumm style): Gaussian on point-to-arc distance."""
+    return np.exp(-0.5 * (cand["dist"].to_numpy() / sigma) ** 2)

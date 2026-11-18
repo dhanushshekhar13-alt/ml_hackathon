@@ -13,7 +13,9 @@ src/eda.py             EDA tables, plots, Folium maps
 src/metrics.py         candidate metrics, Top-1 accuracy, candidate miss rate, route continuity
 src/train_models.py    6 models, GroupKFold CV on train trips, student-test evaluation, plots
 src/hmm.py             HMM + Viterbi decoder
-src/evaluate_hmm.py    model selection + classifier-only vs HMM comparison
+src/tune_bayes.py      Bayesian optimisation (Optuna TPE) of LightGBM, tuned vs untuned comparison
+src/tune_hmm.py        HMM decoder tuning on out-of-fold training-trip probabilities
+src/evaluate_hmm.py    model selection + classifier-only vs distance-only HMM vs classifier+HMM
 api/main.py            FastAPI backend (Laptop 1)
 ui/index.html          evaluator UI (Laptop 2), Leaflet map
 results/               CSV results and logs      reports/figures, reports/maps   plots and Folium maps
@@ -43,6 +45,7 @@ python eda.py                # ~30 s  -> reports/figures, reports/maps, results/
 python train_models.py       # ~6 min -> results/model_comparison.csv, models/*.joblib, figures
 python evaluate_hmm.py       # ~10 s  -> models/selected_model.json, results/hmm_vs_classifier.csv
 cd ..
+bash run_tuning.sh           # ~10 min -> Bayesian tuning, HMM decoder tuning, final selection
 ```
 
 ## Run the API (Laptop 1)
@@ -76,4 +79,5 @@ Both laptops must be on the same Wi-Fi / hotspot. If macOS asks to allow incomin
   The served model is the one with the lowest mean CV log loss (`src/evaluate_hmm.py`).
   On macOS, LightGBM may need `brew install libomp`; if it cannot be imported the other five models still train.
 * **HMM:** states = candidate arcs; emission = classifier probability; transition = exp(-|d_route − d_gps|/β)
-  with bounded Dijkstra; gaps > 30 s split the chain; unreachable pairs get a fixed penalty.
+  with bounded Dijkstra; gaps split the chain; unreachable pairs get a fixed penalty; emission weight,
+  beta and gap threshold are tuned on training trips (`models/hmm_params.json`) and loaded by the API.

@@ -1,4 +1,13 @@
 {
-  "model_file": "LightGBM.joblib",
-  "rule": "min CV log loss"
+  "model_file": "LightGBM_tuned.joblib",
+  "rule": "min CV log loss (train trips, GroupKFold)",
+  "candidates": {
+    "LightGBM_tuned": 0.10133,
+    "LightGBM": 0.1033,
+    "HistGradientBoosting": 0.10436,
+    "RandomForest": 0.10671,
+    "LogisticRegression": 0.15554,
+    "KNN": 0.17556,
+    "GaussianNB": 0.5471
+  }
 }
