@@ -37,15 +37,18 @@
 </div>
 <div id="map"></div>
 <script>
-// No background map tiles: only the GPS points and routes are drawn (no internet tile server needed for the map).
-const map = L.map('map', {attributionControl: false, zoomSnap: 0.25}).setView([20, 0], 2);
+// Light, near-white basemap (Esri World Light Gray Canvas) so the route stands out; GPS dots hidden by default.
+const map = L.map('map', {zoomSnap: 0.25}).setView([20, 0], 2);
+const esri = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/';
+L.tileLayer(esri + 'World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {maxZoom: 16, attribution: 'Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors'}).addTo(map);
+L.tileLayer(esri + 'World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {maxZoom: 16}).addTo(map);
 L.control.scale({imperial: false}).addTo(map);
 let layers = [];
 const ctrl = L.control.layers(null, {}, {collapsed: false}).addTo(map);
 const legend = L.control({position: 'bottomleft'});
 legend.onAdd = () => { const d = L.DomUtil.create('div', 'legend');
-  d.innerHTML = '<span class="sw" style="background:#1565c0;height:8px;width:8px;border-radius:4px"></span>GPS points<br>' +
-                '<span class="sw" style="background:#d32f2f"></span>Predicted route (HMM)<br>' +
+  d.innerHTML = '<span class="sw" style="background:#a4d012;height:6px;outline:1.5px solid #2b2b2b"></span>Predicted route (HMM)<br>' +
+                '<span class="sw" style="background:#1565c0;height:8px;width:8px;border-radius:4px"></span>GPS observations<br>' +
                 '<span class="sw" style="background:#ff9800"></span>Classifier-only'; return d; };
 legend.addTo(map);
 const $ = id => document.getElementById(id);
@@ -74,10 +77,13 @@ $('run').onclick = async () => {
 function draw(res) {
   layers.forEach(l => { map.removeLayer(l); ctrl.removeLayer(l); }); layers = [];
   const gps = L.layerGroup(res.gps.map(p => L.circleMarker(p, {radius: 2, color: '#1565c0', weight: 0, fillOpacity: 0.8})));
-  const clf = L.layerGroup(res.classifier_route.map(s => L.polyline(s, {color: '#ff9800', weight: 3, opacity: 0.7})));
-  const hmm = L.layerGroup(res.predicted_route.map(s => L.polyline(s, {color: '#d32f2f', weight: 4, opacity: 0.85})));
-  [[gps, 'GPS points'], [clf, 'Classifier-only route'], [hmm, 'Predicted route (HMM)']].forEach(([l, n], i) => {
-    if (i !== 1) l.addTo(map); ctrl.addOverlay(l, n); layers.push(l); });
+  const clf = L.polyline(res.classifier_route, {color: '#ff9800', weight: 3, opacity: 0.8});
+  const hmm = L.layerGroup([
+    L.polyline(res.predicted_route, {color: '#2b2b2b', weight: 9, opacity: 0.9, lineCap: 'round', lineJoin: 'round'}),
+    L.polyline(res.predicted_route, {color: '#a4d012', weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round'})]);
+  // only the predicted route is on by default; GPS points and classifier-only route can be ticked in the layer box
+  [[hmm, 'Predicted route (HMM)', true], [gps, 'GPS observations', false], [clf, 'Classifier-only route', false]].forEach(([l, n, on]) => {
+    if (on) l.addTo(map); ctrl.addOverlay(l, n); layers.push(l); });
   map.fitBounds(L.latLngBounds(res.gps));
   const m = res.metrics, pct = v => v === undefined || v === null ? 'n/a' : (100 * v).toFixed(2) + '%';
   $('metrics').innerHTML = `
