@@ -11,7 +11,7 @@ src/pipeline.py        candidate generation (60 m, k=8), feature engineering, re
 src/build_dataset.py   builds feature tables for train / student_test + trip inventory
 src/eda.py             EDA tables, plots, Folium maps
 src/metrics.py         candidate metrics, Top-1 accuracy, candidate miss rate, route continuity
-src/train_models.py    5 models, GroupKFold CV on train trips, student-test evaluation, plots
+src/train_models.py    6 models, GroupKFold CV on train trips, student-test evaluation, plots
 src/hmm.py             HMM + Viterbi decoder
 src/evaluate_hmm.py    model selection + classifier-only vs HMM comparison
 api/main.py            FastAPI backend (Laptop 1)
@@ -72,6 +72,8 @@ Both laptops must be on the same Wi-Fi / hotspot. If macOS asks to allow incomin
 * **Candidates:** arcs within 60 m, k ≤ 8 nearest.
 * **Features:** distance, distance rank, distance minus the closest distance, distance ratio, GPS-heading vs arc-bearing difference,
   heading-valid flag, speed, projection fraction, arc length, #candidates, reverse-twin flag, node degrees.
-* **Models:** Logistic Regression, Gaussian NB, KNN, Random Forest, HistGradientBoosting; 5-fold GroupKFold by trip.
+* **Models:** Logistic Regression, Gaussian NB, KNN, Random Forest, HistGradientBoosting, LightGBM; 5-fold GroupKFold by trip.
+  The served model is the one with the lowest mean CV log loss (`src/evaluate_hmm.py`).
+  On macOS, LightGBM may need `brew install libomp`; if it cannot be imported the other five models still train.
 * **HMM:** states = candidate arcs; emission = classifier probability; transition = exp(-|d_route − d_gps|/β)
   with bounded Dijkstra; gaps > 30 s split the chain; unreachable pairs get a fixed penalty.
