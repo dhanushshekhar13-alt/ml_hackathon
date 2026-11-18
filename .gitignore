@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+# raw dataset and large derived tables stay out of git
+data/
+Student folder/
+# KNN model stores the full training set (63 MB); regenerate with src/train_models.py
+models/KNN.joblib

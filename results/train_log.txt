@@ -1,0 +1,25 @@
+excluded train trips (bad reference): ['00000033', '00000054']
+train rows 274315 trips 78 | test rows 119663
+LogisticRegression     CV F1 0.9012±0.0108 | test F1 0.8981 LL 0.1528 top1 0.8548 cont 0.9084 | 2s
+GaussianNB             CV F1 0.8162±0.0103 | test F1 0.8046 LL 0.6136 top1 0.8362 cont 0.8919 | 1s
+KNN                    CV F1 0.9144±0.0099 | test F1 0.9116 LL 0.1699 top1 0.8589 cont 0.9157 | 93s
+RandomForest           CV F1 0.9251±0.0115 | test F1 0.9233 LL 0.1024 top1 0.8771 cont 0.9221 | 81s
+HistGradientBoosting   CV F1 0.9256±0.0112 | test F1 0.9259 LL 0.1025 top1 0.8790 cont 0.9214 | 11s
+Traceback (most recent call last):
+  File "/home/claude/ml_hackathon/src/train_models.py", line 151, in <module>
+    main()
+    ~~~~^^
+  File "/home/claude/ml_hackathon/src/train_models.py", line 113, in main
+    plots(res, pd.DataFrame(fold_rows))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/claude/ml_hackathon/src/train_models.py", line 121, in plots
+    ax.boxplot(data, labels=names)
+    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/matplotlib/_api/deprecation.py", line 477, in wrapper
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.13/site-packages/matplotlib/__init__.py", line 1531, in inner
+    return func(
+        ax,
+        *map(cbook.sanitize_sequence, args),
+        **{k: cbook.sanitize_sequence(v) for k, v in kwargs.items()})
+TypeError: Axes.boxplot() got an unexpected keyword argument 'labels'. Did you mean 'label'?

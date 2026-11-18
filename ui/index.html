@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PathSnap – Evaluator UI</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  body { margin: 0; font-family: -apple-system, Segoe UI, Roboto, sans-serif; display: flex; height: 100vh; }
+  #side { width: 340px; padding: 16px; box-sizing: border-box; border-right: 1px solid #ddd; overflow-y: auto; }
+  #map { flex: 1; }
+  h1 { font-size: 20px; margin: 0 0 4px; } .sub { color: #666; font-size: 13px; margin-bottom: 14px; }
+  label { font-size: 12px; color: #444; display: block; margin-top: 10px; }
+  input, select, button { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; font-size: 14px; }
+  button { background: #1565c0; color: #fff; border: 0; border-radius: 4px; cursor: pointer; margin-top: 12px; }
+  button:disabled { background: #90a4ae; }
+  table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
+  td { padding: 5px 4px; border-bottom: 1px solid #eee; } td:last-child { text-align: right; font-weight: 600; }
+  #status { font-size: 12px; margin-top: 10px; color: #555; }
+  .legend { background: #fff; padding: 6px 8px; font-size: 12px; line-height: 18px; border: 1px solid #aaa; }
+  .sw { display: inline-block; width: 14px; height: 4px; margin-right: 6px; vertical-align: middle; }
+</style>
+</head>
+<body>
+<div id="side">
+  <h1>PathSnap</h1>
+  <div class="sub">Map-matching &amp; route reconstruction</div>
+  <label>API URL (Laptop 1)</label>
+  <input id="api" value="http://localhost:8000">
+  <button id="connect">Connect &amp; load trips</button>
+  <label>Evaluation trip</label>
+  <select id="trip"></select>
+  <button id="run" disabled>Run prediction</button>
+  <div id="status"></div>
+  <table id="metrics"></table>
+</div>
+<div id="map"></div>
+<script>
+const map = L.map('map').setView([20, 0], 2);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; OpenStreetMap'}).addTo(map);
+let layers = [];
+const ctrl = L.control.layers(null, {}, {collapsed: false}).addTo(map);
+const legend = L.control({position: 'bottomleft'});
+legend.onAdd = () => { const d = L.DomUtil.create('div', 'legend');
+  d.innerHTML = '<span class="sw" style="background:#1565c0;height:8px;width:8px;border-radius:4px"></span>GPS points<br>' +
+                '<span class="sw" style="background:#d32f2f"></span>Predicted route (HMM)<br>' +
+                '<span class="sw" style="background:#ff9800"></span>Classifier-only'; return d; };
+legend.addTo(map);
+const $ = id => document.getElementById(id);
+const status = t => $('status').textContent = t;
+const api = () => $('api').value.replace(/\/$/, '');
+
+$('connect').onclick = async () => {
+  status('Connecting...');
+  try {
+    const r = await fetch(api() + '/trips'); const j = await r.json();
+    $('trip').innerHTML = j.trips.map(t => `<option>${t}</option>`).join('');
+    $('run').disabled = j.trips.length === 0; status(`Connected: ${j.trips.length} trips available`);
+  } catch (e) { status('Could not reach API: ' + e); }
+};
+
+$('run').onclick = async () => {
+  const tid = $('trip').value; $('run').disabled = true; status(`Running trip ${tid}...`);
+  try {
+    const r = await fetch(api() + '/predict', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({trip_id: tid})});
+    if (!r.ok) throw new Error(await r.text());
+    draw(await r.json());
+  } catch (e) { status('Error: ' + e); }
+  $('run').disabled = false;
+};
+
+function draw(res) {
+  layers.forEach(l => { map.removeLayer(l); ctrl.removeLayer(l); }); layers = [];
+  const gps = L.layerGroup(res.gps.map(p => L.circleMarker(p, {radius: 2, color: '#1565c0', weight: 0, fillOpacity: 0.8})));
+  const clf = L.layerGroup(res.classifier_route.map(s => L.polyline(s, {color: '#ff9800', weight: 3, opacity: 0.7})));
+  const hmm = L.layerGroup(res.predicted_route.map(s => L.polyline(s, {color: '#d32f2f', weight: 4, opacity: 0.85})));
+  [[gps, 'GPS points'], [clf, 'Classifier-only route'], [hmm, 'Predicted route (HMM)']].forEach(([l, n], i) => {
+    if (i !== 1) l.addTo(map); ctrl.addOverlay(l, n); layers.push(l); });
+  map.fitBounds(L.latLngBounds(res.gps));
+  const m = res.metrics, pct = v => v === undefined || v === null ? 'n/a' : (100 * v).toFixed(2) + '%';
+  $('metrics').innerHTML = `
+    <tr><td>Trip</td><td>${res.trip_id}</td></tr>
+    <tr><td>GPS observations</td><td>${m.n_points}</td></tr>
+    <tr><td>Point accuracy (HMM)</td><td>${pct(m.hmm_point_accuracy)}</td></tr>
+    <tr><td>Point accuracy (classifier only)</td><td>${pct(m.classifier_point_accuracy)}</td></tr>
+    <tr><td>Route continuity (HMM)</td><td>${pct(m.hmm_continuity)}</td></tr>
+    <tr><td>Route continuity (classifier)</td><td>${pct(m.classifier_continuity)}</td></tr>
+    <tr><td>Route arc precision</td><td>${pct(m.route_arc_precision)}</td></tr>
+    <tr><td>Route arc recall</td><td>${pct(m.route_arc_recall)}</td></tr>
+    <tr><td>Model</td><td>${res.model.replace('.joblib','')}</td></tr>
+    <tr><td>API time</td><td>${res.timing_ms.total} ms</td></tr>`;
+  status(`Done: trip ${res.trip_id}`);
+}
+</script>
+</body>
+</html>

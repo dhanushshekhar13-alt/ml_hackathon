@@ -1,0 +1,3 @@
+partition,trips,obs_total,obs_median,dropped_rows,trips_with_gap_gt_5s,median_label_dist_m,mean_candidate_miss
+student_test,10,19160,1420.0,0,2,4.744646310806274,0.004293490678820766
+train,80,208417,1529.0,0,45,4.629271030426025,0.032545263189322
