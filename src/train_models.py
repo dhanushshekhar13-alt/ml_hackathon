@@ -1,4 +1,4 @@
-"""Train and compare five classifiers on candidate features.
+"""Train and compare six classifiers on candidate features.
 
 - Group-aware 5-fold CV on the training trips (groups = trip_id, no trip in two folds)
 - Refit on all training trips, evaluate on the 10 student-testing trips
@@ -22,6 +22,12 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
+try:  # optional: on macOS LightGBM may need `brew install libomp`
+    from lightgbm import LGBMClassifier
+except Exception as e:  # keep the other models running if it is missing
+    LGBMClassifier = None
+    print('LightGBM unavailable, skipping it:', e)
+
 from data_io import REPO_ROOT
 from metrics import candidate_metrics, sequence_metrics
 from pipeline import FEATURES
@@ -33,7 +39,7 @@ RES, MOD, FIG = REPO_ROOT / "results", REPO_ROOT / "models", REPO_ROOT / "report
 
 
 def make_models():
-    return {
+    models = {
         "LogisticRegression": ("Linear / probabilistic",
                                make_pipeline(StandardScaler(), LogisticRegression(max_iter=2000, C=1.0, random_state=SEED)),
                                "StandardScaler, L2, C=1.0, lbfgs"),
@@ -48,6 +54,12 @@ def make_models():
                                  HistGradientBoostingClassifier(max_iter=200, learning_rate=0.1, max_leaf_nodes=31, random_state=SEED),
                                  "200 iters, lr=0.1, 31 leaves"),
     }
+    if LGBMClassifier is not None:
+        models["LightGBM"] = ("Boosting (LightGBM)",
+                              LGBMClassifier(n_estimators=100, learning_rate=0.1, num_leaves=31, min_child_samples=20,
+                                             random_state=SEED, n_jobs=2, verbose=-1),
+                              "100 trees, lr=0.1, 31 leaves, min_child_samples=20")
+    return models
 
 
 def load():
